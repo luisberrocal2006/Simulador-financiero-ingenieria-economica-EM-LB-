@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>💼 Simulador Financiero</title>
+  <!-- Chart.js para gráficas -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root{
+      --bg:#0f172a; /* slate-900 */
+      --card:#111827; /* gray-900 */
+      --muted:#94a3b8; /* slate-400 */
+      --text:#e5e7eb; /* gray-200 */
+      --acc:#22c55e; /* green-500 */
+      --warn:#f59e0b; /* amber-500 */
+      --danger:#ef4444; /* red-500 */
+      --border:#1f2937; /* gray-800 */
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,Segoe UI,Roboto,Arial}
+    h1,h2,h3{margin:0 0 .5rem}
+    h1{font-size:1.6rem}
+    h2{font-size:1.2rem;color:#cbd5e1}
+    .container{max-width:1200px;margin:auto;padding:24px}
+    .grid{display:grid;gap:16px}
+    .grid-2{grid-template-columns:1fr}
+    .grid-3{grid-template-columns:1fr}
+    @media(min-width:900px){.grid-2{grid-template-columns:1fr 1fr}.grid-3{grid-template-columns:1fr 1fr 1fr}}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    label{font-size:.9rem;color:var(--muted)}
+    input,select{width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:#0b1220;color:var(--text)}
+    input[type=range]{padding:0}
+    .btn{padding:10px 14px;border:none;border-radius:12px;cursor:pointer;font-weight:600}
+    .btn-prim{background:var(--acc);color:#002e16}
+    .btn-warn{background:var(--warn);color:#1f1500}
+    .btn-info{background:#38bdf8;color:#002133}
+    .tag{display:inline-block;background:#0b1220;border:1px solid var(--border);padding:4px 8px;border-radius:999px;color:var(--muted);font-size:.8rem}
+    .muted{color:var(--muted)}
+    .hr{height:1px;background:var(--border);margin:12px 0}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid var(--border);padding:8px;text-align:right;font-variant-numeric:tabular-nums}
+    th:first-child, td:first-child{text-align:center}
+    .warn{color:var(--warn)}
+    .danger{color:var(--danger)}
+    .ok{color:var(--acc)}
+    .radio{display:flex;flex-direction:column;gap:8px}
+    .footer{display:flex;gap:8px;flex-wrap:wrap}
+    .small{font-size:.85rem}
+    canvas{max-height:300px}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="card">
+      <h1>💼 Simulador Financiero</h1>
+      <p class="muted">Calcula préstamos, compara escenarios y simula refinanciamientos. Todo en tu navegador.</p>
+    </header>
+
+    <!-- Sección principal de cálculo -->
+    <section class="grid grid-2">
+      <div class="card" id="calc-card">
+        <h2>📊 Cálculo de préstamo</h2>
+        <div class="row">
+          <div>
+            <label>Tipo de persona</label>
+            <select id="tipoPersona">
+              <option value="natural">natural</option>
+              <option value="jurídica">jurídica</option>
+            </select>
+          </div>
+          <div>
+            <label>Tipo de crédito</label>
+            <select id="tipoCredito">
+              <option>personal</option>
+              <option>hipotecario</option>
+              <option>vehículo</option>
+              <option>educativo</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Salario mensual ($)</label>
+            <input id="salario" type="number" value="3000000" min="0" step="1000" />
+          </div>
+          <div>
+            <label>Monto préstamo ($)</label>
+            <input id="monto" type="number" value="10000000" min="0" step="1000" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Interés anual (%)</label>
+            <input id="tasa" type="range" min="0" max="50" step="0.1" value="10" oninput="tasaOut.textContent=this.value+'%';" />
+            <div class="small muted">Valor: <span id="tasaOut">10%</span></div>
+          </div>
+          <div>
+            <label>Plazo (meses)</label>
+            <input id="meses" type="range" min="1" max="240" value="24" oninput="mesesOut.textContent=this.value+' meses';" />
+            <div class="small muted">Valor: <span id="mesesOut">24 meses</span></div>
+          </div>
+        </div>
+        <div class="footer">
+          <button class="btn btn-prim" id="btnCalcular">📊 Calcular préstamo</button>
+          <span class="tag" id="cuotaMaxTag">Capacidad: —</span>
+        </div>
+        <div class="hr"></div>
+        <div id="resultado"></div>
+        <div class="hr"></div>
+        <canvas id="chartSaldo"></canvas>
+        <div class="hr"></div>
+        <div id="tablaWrap"></div>
+      </div>
+
+      <div class="card">
+        <h2>🧾 Historial de simulaciones</h2>
+        <p class="muted small">Se guarda localmente en tu navegador.</p>
+        <div id="historial"></div>
+        <div class="hr"></div>
+        <button class="btn btn-info" id="btnExport">⬇️ Exportar CSV</button>
+        <button class="btn btn-warn" id="btnClear">🧹 Limpiar historial</button>
+      </div>
+    </section>
+
+    <!-- Comparador de escenarios -->
+    <section class="card" id="comparador">
+      <h2>🔄 Comparador de Escenarios</h2>
+      <div class="grid grid-2">
+        <div>
+          <h3>📘 Escenario A</h3>
+          <div class="row">
+            <div><label>Monto A ($)</label><input id="montoA" type="number" value="10000000" step="1000"></div>
+            <div><label>Tasa A (%)</label><input id="tasaA" type="number" value="10" step="0.1"></div>
+          </div>
+          <div class="row">
+            <div><label>Plazo A (meses)</label><input id="plazoA" type="number" value="24" min="1" max="240"></div>
+          </div>
+        </div>
+        <div>
+          <h3>📙 Escenario B</h3>
+          <div class="row">
+            <div><label>Monto B ($)</label><input id="montoB" type="number" value="10000000" step="1000"></div>
+            <div><label>Tasa B (%)</label><input id="tasaB" type="number" value="8" step="0.1"></div>
+          </div>
+          <div class="row">
+            <div><label>Plazo B (meses)</label><input id="plazoB" type="number" value="36" min="1" max="240"></div>
+          </div>
+        </div>
+      </div>
+      <div class="footer">
+        <button class="btn btn-prim" id="btnComparar">🔍 Comparar escenarios</button>
+      </div>
+      <div class="hr"></div>
+      <div id="compResumen" class="small"></div>
+      <canvas id="chartComparador"></canvas>
+      <div class="grid grid-2">
+        <div>
+          <h3>📘 Tabla Escenario A</h3>
+          <div id="tablaA"></div>
+        </div>
+        <div>
+          <h3>📙 Tabla Escenario B</h3>
+          <div id="tablaB"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Simulador de refinanciamiento -->
+    <section class="card">
+      <h2>🔁 Simulador de Refinanciamiento</h2>
+      <div class="grid grid-2">
+        <div>
+          <h3>📄 Préstamo Actual</h3>
+          <div class="row">
+            <div><label>Monto actual ($)</label><input id="refMonto" type="number" value="10000000" step="1000"></div>
+            <div><label>Tasa actual (%)</label><input id="refTasaAct" type="number" value="12" step="0.1"></div>
+          </div>
+          <div class="row">
+            <div><label>Plazo actual (meses)</label><input id="refPlazoAct" type="number" value="36" min="1" max="240"></div>
+          </div>
+        </div>
+        <div>
+          <h3>🆕 Nueva Propuesta</h3>
+          <div class="row">
+            <div><label>Nueva tasa (%)</label><input id="refTasaNueva" type="number" value="8" step="0.1"></div>
+            <div><label>Nuevo plazo (meses)</label><input id="refPlazoNuevo" type="number" value="36" min="1" max="240"></div>
+          </div>
+        </div>
+      </div>
+      <div class="footer">
+        <button class="btn btn-warn" id="btnRef">🔁 Simular refinanciamiento</button>
+      </div>
+      <div class="hr"></div>
+      <div id="refResultado" class="small"></div>
+      <canvas id="chartRef"></canvas>
+      <div id="tablaRef"></div>
+    </section>
+
+    <footer class="card small">
+      <span class="muted">Consejo:</span> escribe montos y tasas realistas. El cálculo asume tasa fija y sistema francés (cuota fija).
+    </footer>
+  </div>
+
+  <script>
+    // Utilidades -------------------------------------------------------------
+    const fmt = new Intl.NumberFormat('es-CO', {style:'currency', currency:'COP', maximumFractionDigits:0});
+    const fmt2 = new Intl.NumberFormat('es-CO', {style:'currency', currency:'COP'});
+
+    function calcLoanDetails(loan_amount, interest_rate, repayment_months){
+      const r = (interest_rate/100)/12;
+      let monthly_payment;
+      if(r>0){
+        monthly_payment = loan_amount * (r * Math.pow(1+r, repayment_months)) / (Math.pow(1+r, repayment_months) - 1);
+      } else {
+        monthly_payment = loan_amount / repayment_months;
+      }
+      const total_interest = monthly_payment * repayment_months - loan_amount;
+      return {monthly_payment, total_interest};
+    }
+
+    function amortizationTable(loan_amount, interest_rate, repayment_months, monthly_payment){
+      const rows=[]; let balance = loan_amount; const r=(interest_rate/100)/12;
+      for(let m=1;m<=repayment_months;m++){
+        const interest = balance * r;
+        const principal = monthly_payment - interest;
+        balance -= principal;
+        rows.push({Mes:m, PagoMensual: monthly_payment, Capital: principal, Intereses: interest, Saldo: balance});
+      }
+      return rows;
+    }
+
+    function calcularPlazoParaMonto(monto, tasa, cuotaMax){
+      for(let meses=1; meses<=240; meses++){
+        const {monthly_payment} = calcLoanDetails(monto, tasa, meses);
+        if(monthly_payment <= cuotaMax) return meses;
+      }
+      return null;
+    }
+
+    function makeTable(rows){
+      const el=document.createElement('table');
+      el.innerHTML = `<thead><tr><th>Mes</th><th>Pago Mensual</th><th>Pago a Capital</th><th>Pago de Intereses</th><th>Saldo Pendiente</th></tr></thead>`;
+      const tb=document.createElement('tbody');
+      rows.forEach(r=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML = `<td>${r.Mes}</td><td>${fmt2.format(r.PagoMensual)}</td><td>${fmt2.format(r.Capital)}</td><td>${fmt2.format(r.Intereses)}</td><td>${fmt2.format(Math.max(0,r.Saldo))}</td>`;
+        tb.appendChild(tr);
+      });
+      el.appendChild(tb);
+      return el;
+    }
+
+    function downloadCSV(rows, filename='historial.csv'){
+      const headers = Object.keys(rows[0]||{});
+      const csv = [headers.join(',')].concat(rows.map(r=>headers.map(h=>`"${String(r[h]).replaceAll('"','\"')}"`).join(','))).join('\n');
+      const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url);
+    }
+
+    // Estado (historial almacenado en localStorage) --------------------------
+    const LS_KEY='sim_historial_v1';
+    const historial = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
+
+    function pushHistorial(item){
+      historial.push(item);
+      localStorage.setItem(LS_KEY, JSON.stringify(historial));
+      renderHistorial();
+    }
+
+    function renderHistorial(){
+      const box=document.getElementById('historial');
+      if(historial.length===0){ box.innerHTML = '<p class="muted">Sin registros aún.</p>'; return; }
+      const table=document.createElement('table');
+      table.innerHTML = '<thead><tr><th>Fecha</th><th>Persona</th><th>Crédito</th><th>Monto</th><th>Plazo</th><th>Cuota</th></tr></thead>';
+      const tb=document.createElement('tbody');
+      historial.slice().reverse().forEach(h=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML = `<td>${h.Fecha}</td><td>${h.Persona}</td><td>${h.Credito}</td><td>${fmt.format(h.Monto)}</td><td>${h.Plazo}</td><td>${fmt2.format(h.Cuota)}</td>`;
+        tb.appendChild(tr);
+      });
+      table.appendChild(tb);
+      box.innerHTML=''; box.appendChild(table);
+    }
+
+    // Gráficas ---------------------------------------------------------------
+    let chartSaldo, chartComparador, chartRef;
+    function plotLine(ctxId, labels, series, label){
+      const ctx = document.getElementById(ctxId);
+      if(!ctx) return null;
+      const existing = {chartSaldo, chartComparador, chartRef}[ctxId];
+      if(existing) existing.destroy();
+      const chart = new Chart(ctx,{
+        type:'line',
+        data:{ labels, datasets:[{ label, data: series }] },
+        options:{ responsive:true, scales:{ y:{ beginAtZero:true } } }
+      });
+      if(ctxId==='chartSaldo') chartSaldo=chart;
+      if(ctxId==='chartComparador') chartComparador=chart;
+      if(ctxId==='chartRef') chartRef=chart;
+      return chart;
+    }
+
+    // Cálculo principal ------------------------------------------------------
+    const el = (id)=>document.getElementById(id);
+
+    function capacidadPago(tipo, salario){
+      if(tipo==='natural'){
+        return Math.min(salario*0.5, salario - 1423500);
+      } else {
+        return salario*0.8;
+      }
+    }
+
+    function calcular(){
+      const tipo = el('tipoPersona').value;
+      const credito = el('tipoCredito').value;
+      const salario = parseFloat(el('salario').value||0);
+      const monto = parseFloat(el('monto').value||0);
+      const tasa = parseFloat(el('tasa').value||10);
+      const meses = parseInt(el('meses').value||1,10);
+
+      const cuotaMax = Math.max(0, capacidadPago(tipo, salario));
+      el('cuotaMaxTag').textContent = `Capacidad: ${fmt2.format(cuotaMax)} / mes`;
+
+      const {monthly_payment: cuota, total_interest: interes} = calcLoanDetails(monto, tasa, meses);
+      const resBox = el('resultado');
+      const tablaWrap = el('tablaWrap');
+
+      // Limpiar
+      resBox.innerHTML=''; tablaWrap.innerHTML='';
+
+      function resumenFinal(cuota, interes, meses){
+        return `<div class="small"><strong>📌 Resumen</strong><br>💸 Intereses totales: <span class="warn">${fmt2.format(interes)}</span><br>💰 Total pagado: <strong>${fmt2.format(cuota*meses)}</strong></div>`;
+      }
+
+      if(cuota > cuotaMax){
+        const nuevoMonto = cuotaMax * meses;
+        const {monthly_payment: cuota1, total_interest: interes1} = calcLoanDetails(nuevoMonto, tasa, meses);
+        const nuevoPlazo = calcularPlazoParaMonto(monto, tasa, cuotaMax);
+        let cuota2=NaN, interes2=NaN;
+        if(nuevoPlazo){({monthly_payment:cuota2,total_interest:interes2}=calcLoanDetails(monto, tasa, nuevoPlazo));}
+
+        resBox.innerHTML = `
+          <p class="danger">⚠️ El préstamo solicitado excede su capacidad de pago.</p>
+          <p class="small muted">Cuota calculada: ${fmt2.format(cuota)} &nbsp;|&nbsp; Cuota máxima: ${fmt2.format(cuotaMax)}</p>
+          <div class="hr"></div>
+          <div class="radio">
+            <label><input type="radio" name="opt" value="1" checked> Opción 1: Reducir monto a <strong>${fmt.format(nuevoMonto)}</strong> con plazo de ${meses} meses (cuota ${fmt2.format(cuota1)})</label>
+            ${nuevoPlazo ? `<label><input type="radio" name="opt" value="2"> Opción 2: Mantener monto de <strong>${fmt.format(monto)}</strong> y aumentar plazo a ${nuevoPlazo} meses (cuota ${fmt2.format(cuota2)})</label>` : '<span class="muted small">❌ No se encontró un plazo viable para mantener el monto.</span>'}
+          </div>
+          <div class="hr"></div>
+          <button class="btn btn-info" id="btnConfirmar">✅ Confirmar opción</button>
+        `;
+
+        el('btnConfirmar').onclick = ()=>{
+          const opt = document.querySelector('input[name="opt"]:checked')?.value;
+          if(opt==='1'){
+            const rows = amortizationTable(nuevoMonto, tasa, meses, cuota1);
+            resBox.innerHTML = `<p class="ok">✅ Opción seleccionada: Reducir monto</p><p>📆 Plazo: ${meses} meses<br>💸 Cuota mensual: <strong>${fmt2.format(cuota1)}</strong><br>📈 Intereses: ${fmt2.format(interes1)}</p>${resumenFinal(cuota1, interes1, meses)}`;
+            tablaWrap.appendChild(makeTable(rows));
+            plotLine('chartSaldo', rows.map(r=>r.Mes), rows.map(r=>Math.max(0,r.Saldo)), 'Saldo Pendiente');
+            // Guardar historial
+            const fecha = new Date().toLocaleString('es-CO');
+            pushHistorial({Fecha:fecha, Persona:tipo, Credito:credito, Monto:nuevoMonto, Plazo:meses, Cuota:cuota1});
+          } else if(opt==='2' && nuevoPlazo){
+            const rows = amortizationTable(monto, tasa, nuevoPlazo, cuota2);
+            resBox.innerHTML = `<p class="ok">✅ Opción seleccionada: Aumentar plazo</p><p>📆 Plazo: ${nuevoPlazo} meses<br>💸 Cuota mensual: <strong>${fmt2.format(cuota2)}</strong><br>📈 Intereses: ${fmt2.format(interes2)}</p>${resumenFinal(cuota2, interes2, nuevoPlazo)}`;
+            tablaWrap.appendChild(makeTable(rows));
+            plotLine('chartSaldo', rows.map(r=>r.Mes), rows.map(r=>Math.max(0,r.Saldo)), 'Saldo Pendiente');
+            const fecha = new Date().toLocaleString('es-CO');
+            pushHistorial({Fecha:fecha, Persona:tipo, Credito:credito, Monto:monto, Plazo:nuevoPlazo, Cuota:cuota2});
+          }
+        }
+      } else {
+        const rows = amortizationTable(monto, tasa, meses, cuota);
+        resBox.innerHTML = `<p class="ok">✅ Préstamo aprobado</p><p>📆 Plazo: ${meses} meses<br>💸 Cuota mensual: <strong>${fmt2.format(cuota)}</strong><br>📈 Intereses: ${fmt2.format(interes)}</p>${resumenFinal(cuota, interes, meses)}`;
+        tablaWrap.appendChild(makeTable(rows));
+        plotLine('chartSaldo', rows.map(r=>r.Mes), rows.map(r=>Math.max(0,r.Saldo)), 'Saldo Pendiente');
+        const fecha = new Date().toLocaleString('es-CO');
+        pushHistorial({Fecha:fecha, Persona:tipo, Credito:credito, Monto:monto, Plazo:meses, Cuota:cuota});
+      }
+    }
+
+    // Comparador -------------------------------------------------------------
+    function comparar(){
+      const montoA=parseFloat(el('montoA').value||0), tasaA=parseFloat(el('tasaA').value||0), plazoA=parseInt(el('plazoA').value||1,10);
+      const montoB=parseFloat(el('montoB').value||0), tasaB=parseFloat(el('tasaB').value||0), plazoB=parseInt(el('plazoB').value||1,10);
+      const {monthly_payment: cA, total_interest: iA}=calcLoanDetails(montoA, tasaA, plazoA);
+      const {monthly_payment: cB, total_interest: iB}=calcLoanDetails(montoB, tasaB, plazoB);
+      const rowsA=amortizationTable(montoA, tasaA, plazoA, cA);
+      const rowsB=amortizationTable(montoB, tasaB, plazoB, cB);
+      el('compResumen').innerHTML = `📊 A: cuota ${fmt2.format(cA)}, intereses ${fmt2.format(iA)} &nbsp;|&nbsp; B: cuota ${fmt2.format(cB)}, intereses ${fmt2.format(iB)}`;
+
+      // Sincronizar labels a la mayor longitud
+      const maxLen=Math.max(rowsA.length, rowsB.length);
+      const labels=[...Array(maxLen)].map((_,i)=>i+1);
+      // Normalizar series con saldo extendiendo el último valor
+      const serieA = labels.map(i=>rowsA[i-1]?.Saldo ?? rowsA.at(-1)?.Saldo ?? 0).map(v=>Math.max(0,v));
+      const serieB = labels.map(i=>rowsB[i-1]?.Saldo ?? rowsB.at(-1)?.Saldo ?? 0).map(v=>Math.max(0,v));
+
+      // Graficar dos datasets
+      if(chartComparador) chartComparador.destroy();
+      const ctx=document.getElementById('chartComparador');
+      chartComparador = new Chart(ctx,{
+        type:'line',
+        data:{ labels, datasets:[{label:'Saldo A', data:serieA},{label:'Saldo B', data:serieB}]},
+        options:{ responsive:true, scales:{ y:{ beginAtZero:true } } }
+      });
+
+      const tA=makeTable(rowsA); const tB=makeTable(rowsB);
+      el('tablaA').innerHTML=''; el('tablaA').appendChild(tA);
+      el('tablaB').innerHTML=''; el('tablaB').appendChild(tB);
+    }
+
+    // Refinanciamiento -------------------------------------------------------
+    function refinanciar(){
+      const monto=parseFloat(el('refMonto').value||0);
+      const tasaAct=parseFloat(el('refTasaAct').value||0);
+      const plazoAct=parseInt(el('refPlazoAct').value||1,10);
+      const tasaNueva=parseFloat(el('refTasaNueva').value||0);
+      const plazoNuevo=parseInt(el('refPlazoNuevo').value||1,10);
+
+      const {monthly_payment: cAnt, total_interest: iAnt}=calcLoanDetails(monto, tasaAct, plazoAct);
+      const {monthly_payment: cNew, total_interest: iNew}=calcLoanDetails(monto, tasaNueva, plazoNuevo);
+      const ahorro = iAnt - iNew;
+
+      el('refResultado').innerHTML = `📄 Actual: cuota ${fmt2.format(cAnt)}, intereses ${fmt2.format(iAnt)}<br>🆕 Nuevo: cuota ${fmt2.format(cNew)}, intereses ${fmt2.format(iNew)}<br>💡 Ahorro estimado en intereses: <strong class="ok">${fmt2.format(ahorro)}</strong>`;
+
+      const rows=amortizationTable(monto, tasaNueva, plazoNuevo, cNew);
+      if(chartRef) chartRef.destroy();
+      chartRef = new Chart(document.getElementById('chartRef'),{
+        type:'line', data:{labels:rows.map(r=>r.Mes), datasets:[{label:'Saldo (nuevo)', data:rows.map(r=>Math.max(0,r.Saldo))}]}, options:{scales:{y:{beginAtZero:true}}}
+      });
+
+      const t=makeTable(rows); el('tablaRef').innerHTML=''; el('tablaRef').appendChild(t);
+    }
+
+    // Eventos ----------------------------------------------------------------
+    document.getElementById('btnCalcular').onclick = calcular;
+    document.getElementById('btnComparar').onclick = comparar;
+    document.getElementById('btnRef').onclick = refinanciar;
+    document.getElementById('btnExport').onclick = ()=>{ if(historial.length) downloadCSV(historial); };
+    document.getElementById('btnClear').onclick = ()=>{ localStorage.removeItem(LS_KEY); historial.length=0; renderHistorial(); };
+
+    // Render inicial
+    renderHistorial();
+  </script>
+</body>
+</html>
